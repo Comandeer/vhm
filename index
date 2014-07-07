@@ -1,0 +1,148 @@
+#!/usr/bin/env node
+
+"use strict";
+
+process.title = 'vhm';
+
+var cli = require('cli')
+,fs = require('fs')
+,exec = require('child_process').exec
+,dir = __dirname;
+
+cli.parse({
+	noWildcard: [
+		'no-wildcard'
+		,'Disable wildcard'
+		,'boolean'
+		,false
+	]
+	,suffix: [
+		'suffix'
+		,'Domain name suffix'
+		,'string'
+		,'dev'
+	]
+	,root: [
+		'root'
+		,'Root folder'
+		,'string'
+		,'public_html'
+	]
+	,confDir: [
+		'conf-dir'
+		,'Directory with Apache\'s configuration'
+		,'path'
+		,'/etc/apache2'
+	]
+	,vhDir: [
+		'vh-dir'
+		,'Directory that contains vh files'
+		,'path'
+		,'/var/www'
+	]
+	,rewrite: [
+		'rewrite'
+		,'Enable rewrite_mod by default'
+		,'boolean'
+		,true
+	]
+	,delete: [
+		'delete'
+		,'Delete specified virtual host'
+		,'boolean'
+		,false
+	]
+});
+
+cli.main(function(args, options)
+{
+	try
+	{
+		var name = args[0] && args[0].trim()
+		,wildcard = !options.noWildcard
+		,domain = name + '.' + options.suffix
+		,dnsmasq = '/etc/dnsmasq.conf'
+		,hosts = '/etc/hosts'
+		,avail = options.confDir + '/sites-available'
+		,enabled = options.confDir + '/sites-enabled'
+		,file = name + '.conf';
+
+		if(!name)
+			throw new Error('You must specify server name');
+
+		if(options.delete)
+		{
+			if(wildcard && fs.existsSync(dnsmasq))
+			{
+				var tmp = fs.readFileSync(dnsmasq).toString();
+				tmp = tmp.replace(new RegExp('address=/' + domain + '/127.0.0.1', 'g'), '');
+				fs.writeFileSync(dnsmasq, tmp);
+			}
+			else
+			{
+				var tmp = fs.readFileSync(hosts).toString();
+				tmp = tmp.replace(new RegExp('127.0.0.1\t' + domain, 'g'), '');
+				fs.writeFileSync(hosts, tmp);
+			}
+
+			try
+			{
+				fs.unlinkSync(avail + '/' + file);
+				fs.unlinkSync(enabled + '/' + file);
+				fs.rmdirSync(options.vhDir + '/' + name + '/' + options.root);
+				fs.rmdirSync(options.vhDir + '/' + name);
+			}
+			catch(e)
+			{
+			}
+
+			exec('service apache2 restart' + (fs.existsSync(dnsmasq) ? '&& service dnsmasq restart' : ''), function(err)
+			{
+				cli.ok('Virtual host successfully deleted');
+			});
+		}
+		else
+		{
+			var template = fs.readFileSync(dir + '/template').toString();
+
+			template = template.replace('<domain>', domain);
+			template = template.replace('<vhDir>', options.vhDir);
+			template = template.replace('<name>', name);
+			template = template.replace('<root>', options.root);
+			
+			//wildcard support
+			template = template.replace('<alias>', wildcard ? 'ServerAlias *.' + domain : '');
+
+			//rewrite_mod
+			template = template.replace('<rewrite>', options.rewrite ? 'RewriteEngine On\nRewriteOptions Inherit' : '');
+
+			fs.writeFileSync(avail + '/' + file, template);
+
+			exec('ln -s ' + avail + '/' + file + ' ' + enabled + '/' + file, function(err)
+			{
+				try
+				{
+					fs.mkdirSync(options.vhDir + '/' + name, 777);
+					fs.mkdirSync(options.vhDir + '/' + name + '/' + options.root, 777);
+
+					if(wildcard && fs.existsSync(dnsmasq))
+						fs.appendFileSync(dnsmasq, '\naddress=/' + domain + '/127.0.0.1');
+					else
+						fs.appendFileSync(hosts, '\n127.0.0.1\t' + domain);
+				}
+				catch(e)
+				{
+				}
+
+				exec('service apache2 restart' + (fs.existsSync(dnsmasq) ? '&& service dnsmasq restart' : ''), function(err)
+				{
+					cli.ok('Virtual host created');
+				});
+			});
+		}
+	}
+	catch(e)
+	{
+		cli.error(e.message);
+	}
+});
