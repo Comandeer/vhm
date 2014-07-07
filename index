@@ -85,21 +85,23 @@ cli.main(function(args, options)
 				fs.writeFileSync(hosts, tmp);
 			}
 
-			try
+			exec('a2dissite ' + name,function(err)
 			{
-				fs.unlinkSync(avail + '/' + file);
-				fs.unlinkSync(enabled + '/' + file);
-				fs.rmdirSync(options.vhDir + '/' + name + '/' + options.root);
-				fs.rmdirSync(options.vhDir + '/' + name);
-			}
-			catch(e)
-			{
-			}
+				try
+				{
+					fs.unlinkSync(avail + '/' + file);
+					fs.rmdirSync(options.vhDir + '/' + name + '/' + options.root);
+					fs.rmdirSync(options.vhDir + '/' + name);
+				}
+				catch(e)
+				{
+				}
 
-			exec('service apache2 restart' + (fs.existsSync(dnsmasq) ? '&& service dnsmasq restart' : ''), function(err)
-			{
-				cli.ok('Virtual host successfully deleted');
-			});
+				exec('/etc/init.d/apache2 restart' + (fs.existsSync(dnsmasq) ? '&& /etc/init.d/dnsmasq restart' : ''), function(err)
+				{
+					cli.ok('Virtual host successfully deleted');
+				});
+			})
 		}
 		else
 		{
@@ -118,7 +120,7 @@ cli.main(function(args, options)
 
 			fs.writeFileSync(avail + '/' + file, template);
 
-			exec('ln -s ' + avail + '/' + file + ' ' + enabled + '/' + file, function(err)
+			exec('a2ensite ' + name, function(err)
 			{
 				try
 				{
@@ -134,7 +136,7 @@ cli.main(function(args, options)
 				{
 				}
 
-				exec('service apache2 restart' + (fs.existsSync(dnsmasq) ? '&& service dnsmasq restart' : ''), function(err)
+				exec('/etc/init.d/apache2 restart' + (fs.existsSync(dnsmasq) ? '&& /etc/init.d/dnsmasq restart' : ''), function(err)
 				{
 					cli.ok('Virtual host created');
 				});
