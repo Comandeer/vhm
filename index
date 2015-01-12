@@ -124,8 +124,11 @@ cli.main(function(args, options)
 			{
 				try
 				{
-					fs.mkdirSync(options.vhDir + '/' + name, 777);
-					fs.mkdirSync(options.vhDir + '/' + name + '/' + options.root, 777);
+					fs.mkdirSync(options.vhDir + '/' + name, '0777');
+					fs.mkdirSync(options.vhDir + '/' + name + '/' + options.root, '0777');
+
+					fs.chmodSync(options.vhDir + '/' + name, '0777');
+					fs.chmodSync(options.vhDir + '/' + name + '/' + options.root, '0777');
 
 					if(wildcard && fs.existsSync(dnsmasq))
 						fs.appendFileSync(dnsmasq, '\naddress=/' + domain + '/127.0.0.1');
